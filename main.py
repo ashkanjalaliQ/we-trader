@@ -1,8 +1,12 @@
+import os
+from pathlib import Path
 import requests
 import matplotlib.pyplot as plt
 import pandas as pd
 from ta.trend import MACD
+from ta.utils import dropna
 from ta.volume import money_flow_index
+from ta.trend import cci
 
 MARKET_LIST_FILE_NAME = 'markets'
 
@@ -31,6 +35,8 @@ class Dir:
 
         return result
 
+dir = Dir()
+BASE_DIR = dir.base_dir(__file__)
 
 class Update:
     def __init__(self):
@@ -46,7 +52,8 @@ class Update:
         markets = self.requests_to(url)['data']
 
         for market in markets:
-            self.__write(market)
+            if 'USDT' in market:
+                self.__write(market)
 
     def __try_requests(self, url, params=None):
         if params != None:
@@ -71,7 +78,6 @@ class Update:
         return result
 
     def __write(self, txt_append=None):
-        BASE_DIR = self.dir.base_dir(__file__)
         file_address = BASE_DIR + MARKET_LIST_FILE_NAME + '.txt'
         if not self.clear:
             self.__clear_content(file_address)
@@ -88,8 +94,9 @@ class Update:
             file.write(text)
 
 
-class Price:
+class Price(Update):
     def __init__(self, market, type, limit=100):
+        super().__init__()
         self.url = URL()
         self.dir = Dir()
         self.params = {
@@ -109,7 +116,7 @@ class Price:
         }
         self.full_data = False
 
-    def __try_requests(self, url, params=None):
+    '''def __try_requests(self, url, params=None):
         if params != None:
             result = requests.get(url, params=params)
             while result.status_code != 200:
@@ -129,7 +136,7 @@ class Price:
             result = self.__try_requests(url)
             return result.json()
         result = self.__try_requests(url)
-        return result
+        return result'''
 
     def __get_price(self):
         url = self.url.get('price')
@@ -160,9 +167,13 @@ class Price:
         return self.prices_data.get(key)
 
     def __save_csv(self):
-        BASE_DIR = self.dir.base_dir(__file__)
         df = pd.DataFrame(self.prices_data)
-        df.to_csv(BASE_DIR + self.prices_data['market'][0] + '-' + self.params['type'] + '.csv', index=False)
+        try:
+            os.mkdir(f"{DATA_DIR}/{self.params['market']}")
+        except FileExistsError:
+            pass
+        #df.to_csv(BASE_DIR + DATA_DIR + '/' + self.params['market'] + '/' + self.prices_data['market'][0] + '-' + self.params['type'] + '.csv', index=False)
+        df.to_csv(BASE_DIR + DATA_DIR + '/' + FILE_PATTERN_SAVE.format(self.params['market'], self.prices_data['market'][0], self.params['type']), index=False)
 
 
 class Indicators:
@@ -171,37 +182,32 @@ class Indicators:
         self.prices_data = self.__open_file(file_name)
 
     def __open_file(self, file_name):
-        return pd.read_csv(file_name)
-
-    def __to_list(self, key, series=True):
-        price_data = self.prices_data[key].to_list()
-        if series:
-            return pd.Series(price_data)
-        return price_data
+        df = pd.read_csv(file_name)
+        df = dropna(df)
+        return df
 
     def mfi(self):
-        return money_flow_index(
-            self.__to_list('high'),
-            self.__to_list('low'),
-            self.__to_list('close'),
-            self.__to_list('vol')
+        return money_flow_index(self.prices_data['high'],
+                                self.prices_data['low'],
+                                self.prices_data['close'],
+                                self.prices_data['vol']
         )
 
+
     def macd(self, type=None, key='close'):
-        obj = MACD(self.__to_list(key))
-        types = {
-            'macd': obj.macd(),
-            'signal': obj.macd_signal(),
-            'histo': obj.macd_diff()
-        }
-        #print('1', obj.macd_diff())
-        if type != None:
-            return types[type]
-        return types
+        #obj = MACD(self.__to_list(key))
+        obj = MACD(self.prices_data['close'])
+        return obj
+
+    def cci(self):
+        return cci(
+            self.prices_data['high'],
+            self.prices_data['low'],
+            self.prices_data['close']
+        )
 
     def rsi(self):
         pass
-
 
 class Signals:
     def __init__(self, file_name):
@@ -209,21 +215,28 @@ class Signals:
         self.indicators = Indicators(file_name)
         self.indicators_guide = {
             'mfi': self.__mfi_signal,
-            'macd': self.__macd_signal
+            'macd': self.__macd_signal,
+            'cci': self.__cci_signal
         }
 
     def __mfi_signal(self):
         mfi = self.indicators.mfi()
         mfi = list(mfi)
-        if mfi[-1] <= 20:
-            print(57485634743567632784)
+        if mfi[-1] <= 30:
             return True
         return False
 
     def __macd_signal(self):
         #if list(self.indicators.macd('macd'))[-1] < list(self.indicators.macd('signal'))[-1]:
             #if list(self.indicators.macd('macd'))[-1] < 0 and list(self.indicators.macd('signal'))[-1] < 0:
-        if list(self.indicators.macd('histo'))[-1] > 0:
+        #if list(self.indicators.macd('histo'))[-1] > 0:
+        if list(self.indicators.macd().macd_diff())[-1] > 0:
+            return True
+        return False
+
+    def __cci_signal(self):
+        print(self.indicators.cci().iloc[-1])
+        if 80 <= self.indicators.cci().iloc[-1] <= 100:
             return True
         return False
 
@@ -235,6 +248,16 @@ class Signals:
 
         return result
 
+update = Update()
+update.update('market_list')
+
+COINS = []
+
+with open(BASE_DIR + MARKET_LIST_FILE_NAME + '.txt') as markets:
+    markets_list = markets.readlines()
+
+for market in markets_list:
+    COINS.append(market[:-1])
 
 COINS = [
     'BNBUSDT',
@@ -245,30 +268,45 @@ COINS = [
     'DOGEUSDT',
     'LTCUSDT',
     'TRXUSDT',
-    'XMRUSDT'
+    'XMRUSDT',
+    'XRPUSDT',
+    'DOTUSDT',
+    'UNIUSDT',
+    'LINKUSDT',
+    'SOLUSDT',
+    'VETUSDT',
+    'XLMUSDT',
+    'NEOUSDT',
+    'DASHUSDT',
+    'NANOUSDT'
 ]
-
 
 TYPES = [
     '1hour',
     '2hour',
-    '4hour',
-    '6hour',
-    '12hour',
-    '1day',
-    '3day',
-    '1week'
+    '1day'
 ]
+
+DATA_DIR = "market-data/"
+
+FILE_PATTERN_SAVE = '{}/{}-{}.csv'
+
+data_dir = Path("./market-data")
+if not data_dir.is_dir():
+    os.mkdir(DATA_DIR)
+
 
 while True:
     for coin in COINS:
         for type in TYPES:
             price = Price(coin, type)
-            price.get_by('close')
-            signal = Signals(f'{coin}-{type}.csv')
-            if signal.get_signal()[0] == True:
-                print(f'Coin: {coin}\nType: {type}\nSignals: {signal.get_signal()}')
-            else:
-                print(f'Coin: {coin}\n')
+            p = price.get_by('close')
 
-            print('--------------------')
+            signal = Signals(DATA_DIR + FILE_PATTERN_SAVE.format(coin, coin, type))
+            if signal.get_signal()[2] == True:
+
+                plt.plot(p)
+                plt.title(coin + '-' + type)
+                plt.show()
+
+            print(f'{coin} in {type}: Checked.')
