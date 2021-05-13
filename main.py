@@ -257,9 +257,9 @@ with open(BASE_DIR + MARKET_LIST_FILE_NAME + '.txt') as markets:
     markets_list = markets.readlines()
 
 for market in markets_list:
-    COINS.append(market[:-1])
+    COINS.append(market.split(':')[-1][:-1])
 
-COINS = [
+"""COINS = [
     'BNBUSDT',
     'ADAUSDT',
     'BTCUSDT',
@@ -279,7 +279,8 @@ COINS = [
     'NEOUSDT',
     'DASHUSDT',
     'NANOUSDT'
-]
+]"""
+print(COINS)
 
 TYPES = [
     '1hour',
