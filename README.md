@@ -1,1 +1,1 @@
-# coinex-trader
+# we-trader
