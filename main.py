@@ -1,4 +1,5 @@
 import yfinance as yf
+import re
 from ta.volume import money_flow_index as MFI
 from ta.trend import MACD
 from ta.momentum import rsi as RSI
