@@ -1,5 +1,7 @@
+import requests
 import yfinance as yf
 import re
+import pandas as pd
 from ta.volume import money_flow_index as MFI
 from ta.trend import MACD
 from ta.momentum import rsi as RSI
@@ -8,12 +10,59 @@ from ta.momentum import StochasticOscillator as SR
 from ta.trend import EMAIndicator
 from ta.trend import SMAIndicator
 
-class History:
-    def __init__(self, timeframe='1d'):
-        self.timeframe = timeframe
 
-    def get(self, coin_name, period="max"):
-        return yf.Ticker(ticker=coin_name).history(period=period, interval=self.timeframe)
+class History:
+    def __init__(self, limit=100):
+        self.params = {
+            "limit": limit
+        }
+        self.prices_data = {
+            'time': [],
+            'open': [],
+            'close': [],
+            'high': [],
+            'low': [],
+            'vol': [],
+            'amount': [],
+            'market': [],
+        }
+        self._base_url = 'https://api.coinex.com/v1/market/kline'
+
+    def __to_pandas_series(self, prices_data):
+        #for key in prices_data:
+            #prices_data[key] = pd.DataFrame(prices_data[key])
+        return pd.DataFrame(prices_data)
+
+    def __try_requests(self, url):
+        result = requests.get(url, params=self.params)
+        while result.status_code != 200:
+            result = requests.get(url, params=self.params)
+        return result
+
+    def __requests_to(self, url, is_json=True):
+        result = self.__try_requests(url)
+        if is_json:
+            return result.json()
+        return result
+
+    def __get_price(self):
+        result = self.__requests_to(url=self._base_url)['data']
+
+        return self.__fill_data(result)
+
+    def __fill_data(self, result):
+        for info in result:
+            for i, key in enumerate(self.prices_data.keys()):
+                try:
+                    self.prices_data[key].append(float(info[i]))
+                except:
+                    self.prices_data[key].append(info[i])
+        return self.prices_data
+
+    def get_by(self, coin_name, timeframe):
+        self.params.update({'market': coin_name, 'type': timeframe})
+        self.prices_data = self.__get_price()
+        return self.__to_pandas_series(self.prices_data)
 
 
 class Indicators:
@@ -22,36 +71,36 @@ class Indicators:
 
     def mfi(self):
         return MFI(
-            self.price_data['High'],
-            self.price_data['Low'],
-            self.price_data['Close'],
-            self.price_data['Volume']
+            self.price_data['high'],
+            self.price_data['low'],
+            self.price_data['close'],
+            self.price_data['vol']
         )
 
-    def macd(self, key='Close', slow=26, fast=12, sign=9):
+    def macd(self, key='close', slow=26, fast=12, sign=9):
         return MACD(self.price_data[key], window_slow=slow, window_fast=fast, window_sign=sign)
 
     def cci(self):
         return CCI(
-            self.price_data['High'],
-            self.price_data['Low'],
-            self.price_data['Close']
+            self.price_data['high'],
+            self.price_data['low'],
+            self.price_data['close']
         )
 
-    def rsi(self, key='Close', length=14):
+    def rsi(self, key='close', length=14):
         return RSI(self.price_data[key], window=length)
 
     def sr(self):
         return SR(
-            self.price_data['High'],
-            self.price_data['Low'],
-            self.price_data['Close']
+            self.price_data['high'],
+            self.price_data['low'],
+            self.price_data['close']
         )
 
-    def ema(self, key='Close', length=14):
+    def ema(self, key='close', length=14):
         return EMAIndicator(self.price_data[key], window=length)
 
-    def sma(self, key='Close', length=14):
+    def sma(self, key='close', length=14):
         return SMAIndicator(self.price_data[key], window=length)
 
 
@@ -61,11 +110,11 @@ class Analyzer:
         :param indicators: Indicators Object
         """
         self.variables = {
-            'high': list(indicators.price_data['High']),
-            'low': list(indicators.price_data['Low']),
-            'open': list(indicators.price_data['Open']),
-            'close': list(indicators.price_data['Close']),
-            'vol': list(indicators.price_data['Volume']),
+            'high': list(indicators.price_data['high']),
+            'low': list(indicators.price_data['low']),
+            'open': list(indicators.price_data['open']),
+            'close': list(indicators.price_data['close']),
+            'vol': list(indicators.price_data['vol']),
             'macd_macd': list(indicators.macd().macd()),
             'macd_signal': list(indicators.macd().macd_signal()),
             'macd_diff': list(indicators.macd().macd_diff()),
@@ -123,12 +172,20 @@ orderlist = OrderList()
 orders = orderlist.get_user_orders()
 coins = orderlist.get_user_coins()
 
+timeframes = [
+    '2hour',
+    '4hour',
+    '1day'
+]
+
 history = History()
 
 for coin in coins:
-    price_data = history.get(coin_name=coin)
-    indicators = Indicators(price_data)
+    for timeframe in timeframes:
+        price_data = history.get_by(coin_name=coin, timeframe=timeframe)
 
-    analyzer = Analyzer(indicators, orders)
-    if analyzer.interpret_code():
-        print(coin)
+        indicators = Indicators(price_data)
+
+        analyzer = Analyzer(indicators, orders)
+        if analyzer.interpret_code():
+            print(f'{coin}: timeframe {timeframe}')
