@@ -29,14 +29,11 @@ class History:
         self._base_url = 'https://api.coinex.com/v1/market/kline'
 
     def __to_pandas_series(self, prices_data):
-        #for key in prices_data:
-            #prices_data[key] = pd.DataFrame(prices_data[key])
         return pd.DataFrame(prices_data)
 
     def __try_requests(self, url):
-        result = requests.get(url, params=self.params)
-        while result.status_code != 200:
-            result = requests.get(url, params=self.params)
+        while (result := requests.get(url, params=self.params)).status_code != 200:
+            pass
         return result
 
     def __requests_to(self, url, is_json=True):
@@ -173,8 +170,6 @@ orders = orderlist.get_user_orders()
 coins = orderlist.get_user_coins()
 
 timeframes = [
-    '2hour',
-    '4hour',
     '1day'
 ]
 
