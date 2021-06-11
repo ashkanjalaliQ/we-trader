@@ -1,1 +1,1 @@
-stoch_stoch[-1]<=20 and stoch_signal[-1]<=20
+mfi[-1]<=20

@@ -56,7 +56,7 @@ class History:
                     self.prices_data[key].append(info[i])
         return self.prices_data
 
-    def get_by(self, coin_name, timeframe):
+    def get_by_name(self, coin_name, timeframe):
         self.params.update({'market': coin_name, 'type': timeframe})
         self.prices_data = self.__get_price()
         return self.__to_pandas_series(self.prices_data)
@@ -177,7 +177,7 @@ history = History()
 
 for coin in coins:
     for timeframe in timeframes:
-        price_data = history.get_by(coin_name=coin, timeframe=timeframe)
+        price_data = history.get_by_name(coin_name=coin, timeframe=timeframe)
 
         indicators = Indicators(price_data)
 
