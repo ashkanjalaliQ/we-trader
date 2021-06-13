@@ -1,1 +1,6 @@
+1hour
+2hour
+4hour
+6hour
+12hour
 1day

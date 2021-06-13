@@ -10,6 +10,7 @@ from ta.momentum import StochasticOscillator as SR
 from ta.trend import EMAIndicator
 from ta.trend import SMAIndicator
 import matplotlib.pyplot as plt
+from multiprocessing import Process
 
 
 class History:
@@ -79,8 +80,8 @@ class Indicators:
             self.price_data['vol']
         )
 
-    def macd(self, key='close', slow=26, fast=12, sign=9):
-        return MACD(self.price_data[key], window_slow=slow, window_fast=fast, window_sign=sign)
+    def macd(self, key='close', slow=26, fast=12, signal=9):
+        return MACD(self.price_data[key], window_slow=slow, window_fast=fast, window_sign=signal)
 
     def cci(self, length=14):
         return CCI(
@@ -101,14 +102,7 @@ class Indicators:
             window=length,
             smooth_window=length_smooth
         )
-        '''data = {}
-        data['14-high'] = self.price_data['high'].rolling(21).max()
-        data['14-low'] = self.price_data['low'].rolling(21).min()
-        data['stoch_stoch'] = (self.price_data['close'] - data['14-low']) * 100 / (data['14-high'] - data['14-low'])
-        data['stoch_signal'] = data['stoch_stoch'].rolling(8).mean()
-        print(data['stoch_signal'].values[-1], data['stoch_stoch'].values[-1])
-        return data
-'''
+
     def ema(self, key='close', length=14):
         return EMAIndicator(self.price_data[key], window=length)
 
@@ -133,8 +127,6 @@ class Analyzer:
             'mfi': list(indicators.mfi()),
             'rsi': list(indicators.rsi()),
             'cci': list(indicators.cci()),
-            #'stoch_stoch': list(indicators.sr()['stoch_stoch'])[-1],
-            #'stoch_signal': list(indicators.sr()['stoch_signal'])[-1],
             'stoch_stoch': list(indicators.sr().stoch()),
             'stoch_signal': list(indicators.sr().stoch_signal()),
             'ema7': list(indicators.ema(length=7).ema_indicator()),
@@ -160,10 +152,8 @@ class Analyzer:
 
     def interpret_code(self):
         for code in self.codes:
-            result = eval(code, self.variables)
-            self.results.append(result)
-        if False in self.results:
-            return False
+            if not eval(code, self.variables):
+                return False
         return True
 
 
@@ -171,6 +161,11 @@ class OrderList:
     def __init__(self):
         self.order = []
         self.coins = []
+        self.address = {
+            'orders': 'main.txt',
+            'coins': 'markets.txt',
+            'timeframes': 'timeframes.txt'
+        }
 
     def _cleaner(self, ls):
         ls_cleaned = []
@@ -179,28 +174,17 @@ class OrderList:
                 ls_cleaned.append(ls[i])
         return ls_cleaned
 
-    def get_user_orders(self):
-        with open('main.txt', 'r') as reader:
-            orders = reader.read().split('\n')
-        return self._cleaner(orders)
+    def get(self, type):
+        with open(self.address[type], 'r') as reader:
+            lines = reader.read().split('\n')
+        return self._cleaner(lines)
 
-    def get_user_coins(self):
-        with open('markets.txt', 'r') as reader:
-            coins = reader.read().split('\n')
-        return self._cleaner(coins)
 
-    def get_user_timeframes(self):
-        with open('timeframes.txt') as reader:
-            timeframes = reader.read().split('\n')
-        return self._cleaner(timeframes)
-
-    def __str__(self):
-        return self.order
 
 orderlist = OrderList()
-orders = orderlist.get_user_orders()
-coins = orderlist.get_user_coins()
-timeframes = orderlist.get_user_timeframes()
+orders = orderlist.get('orders')
+coins = orderlist.get('coins')
+timeframes = orderlist.get('timeframes')
 
 history = History()
 
@@ -213,5 +197,3 @@ for coin in coins:
         analyzer = Analyzer(indicators, orders)
         if analyzer.interpret_code():
             print(f'{coin}: timeframe {timeframe} => Found')
-        #else:
-            #print(f'{coin}: timeframe: {timeframe} => Checked.')

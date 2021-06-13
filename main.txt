@@ -1,1 +1,1 @@
-open[-2]-close[-2] <0 and open[-1] - close[-1] >0 and open[-1]>high[-2] and close[-1]<=low[-2]
+stoch_stoch[-1] <= 30 and stoch_signal[-1] <= 30
