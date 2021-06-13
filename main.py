@@ -1,6 +1,7 @@
 import requests
 import yfinance as yf
 import re
+import concurrent.futures
 import pandas as pd
 from ta.volume import money_flow_index as MFI
 from ta.trend import MACD
@@ -34,12 +35,8 @@ class History:
         return pd.DataFrame(prices_data)
 
     def __try_requests(self, url):
-        try:
-            while (result := requests.get(url, params=self.params)).status_code != 200:
-                pass
-        except ConnectionError:
-            raise print('ALARM: Your Net is lost. Please Check the Connection!')
-
+        while (result := requests.get(url, params=self.params)).status_code != 200:
+            pass
         return result
 
     def __requests_to(self, url, is_json=True):
@@ -62,10 +59,28 @@ class History:
                     self.prices_data[key].append(info[i])
         return self.prices_data
 
+    def __concurrent_to_list(self, result):
+        for i in range(len(result)):
+            result[i] = result[i].result()
+        return result
+
     def get_by_name(self, coin_name, timeframe):
         self.params.update({'market': coin_name, 'type': timeframe})
         self.prices_data = self.__get_price()
         return self.__to_pandas_series(self.prices_data)
+
+    def get_all_coins(self, coins, timeframe):
+        responses = []
+        self.params.update({'type': timeframe})
+        with concurrent.futures.ThreadPoolExecutor(max_workers=14) as executor:
+            for coin in coins:
+                #responses = [executor.submit(self.__get_price) for coin in coins]
+                self.params.update({'market': coin})
+                print(1)
+                responses.append(executor.submit(self.__get_price()))
+            concurrent.futures.wait(res)
+
+        return self.__to_pandas_series(self.__concurrent_to_list(responses))
 
 
 class Indicators:
@@ -186,7 +201,7 @@ orders = orderlist.get('orders')
 coins = orderlist.get('coins')
 timeframes = orderlist.get('timeframes')
 
-history = History()
+'''history = History()
 
 for coin in coins:
     for timeframe in timeframes:
@@ -196,4 +211,6 @@ for coin in coins:
 
         analyzer = Analyzer(indicators, orders)
         if analyzer.interpret_code():
-            print(f'{coin}: timeframe {timeframe} => Found')
+            print(f'{coin}: timeframe {timeframe} => Found')'''
+
+print(History().get_all_coins(coins=coins, timeframe="1day"))
