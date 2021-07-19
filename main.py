@@ -74,7 +74,7 @@ class History:
         self.params.update({'type': timeframe})
         with concurrent.futures.ThreadPoolExecutor(max_workers=14) as executor:
             for coin in coins:
-                #responses = [executor.submit(self.__get_price) for coin in coins]
+
                 self.params.update({'market': coin})
                 print(1)
                 responses.append(executor.submit(self.__get_price()))
@@ -200,8 +200,7 @@ orderlist = OrderList()
 orders = orderlist.get('orders')
 coins = orderlist.get('coins')
 timeframes = orderlist.get('timeframes')
-
-'''history = History()
+history = History()
 
 for coin in coins:
     for timeframe in timeframes:
@@ -211,6 +210,4 @@ for coin in coins:
 
         analyzer = Analyzer(indicators, orders)
         if analyzer.interpret_code():
-            print(f'{coin}: timeframe {timeframe} => Found')'''
-
-print(History().get_all_coins(coins=coins, timeframe="1day"))
+            print(f'{coin}: timeframe {timeframe} => Found')
