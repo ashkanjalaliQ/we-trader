@@ -1,0 +1,2 @@
+int m = 200
+if (high[-1] - low[-1]) / low[-1] * 100 > 3 ? alert(symbol, timeframe)
